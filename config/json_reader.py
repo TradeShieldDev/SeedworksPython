@@ -4,8 +4,7 @@ from typing import Optional
 
 import json
 
-class ConfigReader:       
-    
+class JsonReader:    
     
     def convert(self, json_data, class_type):
         if isinstance(json_data, list):

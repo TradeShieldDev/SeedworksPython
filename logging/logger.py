@@ -1,7 +1,9 @@
 from loguru import logger
+from sdk.config.config_loader import ConfigManager
+
+from sdk.logging.logging_settings import LoggingSettings
+
 import os
-from sdk.config_reader import ConfigReader
-from sdk.contracts.logging import Logging
 
 def _get_log_level(level:str):
     
@@ -37,16 +39,10 @@ class Logger:
     @staticmethod
     def _setup_logger():
         try:
-            config_reader = ConfigReader()
+            config_reader:ConfigManager = ConfigManager.get_instance()
+            logger_settings = config_reader.get_logger_config()
 
-            logger_settings = config_reader.section('logging', Logging)            
-            log_level = _get_log_level(logger_settings.level)
-            log_filename =  logger_settings.file_name
-            log_file_path = logger_settings.path
-            max_file_size_mb = logger_settings.max_file_size_in_mb
-            max_number_of_files = logger_settings.max_number_of_files
-
-            os.makedirs(log_file_path, exist_ok=True)
+            os.makedirs(logger_settings.path, exist_ok=True)
 
             log_format:str = None
 
@@ -56,10 +52,10 @@ class Logger:
                 log_format = logger_settings.log_format            
 
             logger.add(
-                f"{log_file_path}/{log_filename}",
-                level=log_level,
-                rotation=f"{max_file_size_mb} MB",
-                retention=max_number_of_files,
+                f"{logger_settings.path}/{logger_settings.file_name}",
+                level= _get_log_level(logger_settings.level),
+                rotation=f"{str(logger_settings.max_file_size_in_mb)} MB",
+                retention=f"{str(logger_settings.max_retention_days)} days",
                 enqueue=True,  # Safe in multi-threaded apps
                 backtrace=True,
                 compression="zip",  # Compress old log files
