@@ -1,6 +1,6 @@
 
 from enum import Enum
-from sdk.logging.logging_settings import LoggingSettings
+from sdk.contracts.logging_settings import LoggingSettings
 
 import configparser
 import os
