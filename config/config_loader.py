@@ -1,9 +1,14 @@
 
 from enum import Enum
+from typing import Any
+from json import loads
+from typing import Optional
+
 from sdk.contracts.logging_settings import LoggingSettings
 
 import configparser
 import os
+import json
 
 class ConfigType(Enum):
     INI = 1
@@ -23,7 +28,8 @@ class ConfigManager:
     DEFAULT_LOGGER_SECTION = 'logger_settings'
 
     _instance = None
-    _ini_config:configparser.ConfigParser = None
+    _ini_data:configparser.ConfigParser = None
+    _json_data = None
 
     type:ConfigType = None
     file_name:str = None
@@ -34,9 +40,13 @@ class ConfigManager:
 
         # Load INI Config Reader
         if (self.type == ConfigType.INI):
-            self._ini_config = configparser.ConfigParser()
-            self._ini_config.read(self.file_name)
+            self._ini_data = configparser.ConfigParser()
+            self._ini_data.read(self.file_name)
 
+        # Load the JSON Config Reader
+        if (self.type == ConfigType.JSON):
+            with open(self.file_name, 'r') as file:
+                self._json_data = json.load(file)                
 
     @staticmethod
     def get_instance():
@@ -52,41 +62,17 @@ class ConfigManager:
 
         if (found_json):
             type = ConfigType.JSON
-            ConfigManager._file_name = ConfigManager.DEFAULT_JSON_FILENAME
+            file_name = ConfigManager.DEFAULT_JSON_FILENAME
 
         elif (found_ini):
-            ConfigManager._type = ConfigType.INI
-            ConfigManager._file_name = ConfigManager.DEFAULT_INI_FILENAME
+            type = ConfigType.INI
+            file_name = ConfigManager.DEFAULT_INI_FILENAME
 
         else: raise Exception(f'No default config file found, expected [{ConfigManager.DEFAULT_INI_FILENAME}] or [{ConfigManager.DEFAULT_JSON_FILENAME}].')    
 
-        ConfigManager._instance = ConfigManager.__create_instance__(ConfigManager._type, ConfigManager._file_name)
+        ConfigManager._instance = ConfigManager.__create_instance__(type, file_name)
         return ConfigManager._instance
-
-
-    def _get_ini_logger_config(self) -> LoggingSettings:
-
-        log_settings = LoggingSettings()      
-
-        log_settings.level = self._ini_config.get(ConfigManager.DEFAULT_LOGGER_SECTION, 'level', fallback=None)
-        log_settings.file_name = self._ini_config.get(ConfigManager.DEFAULT_LOGGER_SECTION, 'file_name', fallback=None)
-        log_settings.path = self._ini_config.get(ConfigManager.DEFAULT_LOGGER_SECTION, 'path', fallback=None)
-        log_settings.max_file_size_in_mb = self._ini_config.get(ConfigManager.DEFAULT_LOGGER_SECTION, 'max_file_size', fallback=None)
-        log_settings.max_retention_days = self._ini_config.get(ConfigManager.DEFAULT_LOGGER_SECTION, 'max_retention_days', fallback=None)
-
-        return log_settings
-
-
-    def _get_json_logger_config(self) -> LoggingSettings:
-        raise Exception('[__get_json_logger_config] is not implimented')
-
-        logger_settings = config_reader.section('logging', Logging)            
-        log_level = _get_log_level(logger_settings.level)
-        log_filename =  logger_settings.file_name
-        log_file_path = logger_settings.path
-        max_file_size_mb = logger_settings.max_file_size_in_mb
-        max_number_of_files = logger_settings.max_number_of_files
-
+    
 
     def __create_instance__(type:ConfigType, file_name:str):
         # Check if the file exists
@@ -101,13 +87,13 @@ class ConfigManager:
         
         logger_config:LoggingSettings = None
 
-        if (ConfigManager._type == ConfigType.INI):
+        if (self.type == ConfigType.INI):
             logger_config = self._get_ini_logger_config()
         
-        elif (ConfigManager._type == ConfigType.JSON):
+        elif (self.type == ConfigType.JSON):
             logger_config = self._get_json_logger_config()
 
-        else: raise Exception(f"Type [{ConfigManager._type}] does not have method for getting the logger config.")
+        else: raise Exception(f"Type [{self.type}] does not have method for getting the logger config.")
 
 
         if logger_config.file_name == None:
@@ -127,12 +113,30 @@ class ConfigManager:
 
         return logger_config
     
+    ''' 
+    ====================================================================================
+    INI Specific Configuration Commands
+    ====================================================================================    
+    ''' 
 
-    def get_ini_config_value(self, section, key, default=None, data_type=DataType.String):
+    def _get_ini_logger_config(self) -> LoggingSettings:
+
+        log_settings = LoggingSettings()      
+
+        log_settings.level = self._ini_data.get(ConfigManager.DEFAULT_LOGGER_SECTION, 'level', fallback=None)
+        log_settings.file_name = self._ini_data.get(ConfigManager.DEFAULT_LOGGER_SECTION, 'file_name', fallback=None)
+        log_settings.path = self._ini_data.get(ConfigManager.DEFAULT_LOGGER_SECTION, 'path', fallback=None)
+        log_settings.max_file_size_in_mb = self._ini_data.get(ConfigManager.DEFAULT_LOGGER_SECTION, 'max_file_size', fallback=None)
+        log_settings.max_retention_days = self._ini_data.get(ConfigManager.DEFAULT_LOGGER_SECTION, 'max_retention_days', fallback=None)
+
+        return log_settings
+    
+
+    def get_ini_key_value(self, section, key, default=None, data_type=DataType.String):
         # If section is an Enum, use its value; otherwise, use it directly
         section_name = section.value if isinstance(section, Enum) else section
 
-        string_value = self._ini_config.get(section_name, key, fallback=default)
+        string_value = self._ini_data.get(section_name, key, fallback=default)
 
         # If the config doesn’t have the key at all, return default right away
         if string_value is None:
@@ -165,3 +169,47 @@ class ConfigManager:
         except (ValueError, TypeError):
             # If parsing fails, you could raise or return the default
             return default
+
+
+    ''' 
+    ====================================================================================
+    JSON Specific Configuration Commands
+    ====================================================================================    
+    ''' 
+
+    def _json_convert(self, json_data, class_type):
+        if isinstance(json_data, list):
+            return [self._json_convert(item) for item in json_data]
+        
+        elif isinstance(json_data, dict):
+            instance = class_type()
+            for key, value in json_data.items():
+                setattr(instance, key, self._json_convert(value, class_type))                
+            return instance
+        
+        else:
+            return json_data
+
+    def _convert_json_section(self, json_payload, data_type):
+        
+        if isinstance(json_payload, str):
+            return json_payload
+        
+        elif isinstance(json_payload, (dict, list)):
+            return  self._json_convert(json_payload, data_type)
+        
+        else:
+            raise TypeError("json_data must be a JSON document in str, bytes, bytearray, dict, or list format")  
+
+
+    def get_json_section(self, section_name, data_type):
+        if section_name in self._json_data:
+            json_data = self._json_data[section_name]            
+            return self._convert_json_section(json_data, data_type)       
+            
+        else:
+            raise KeyError(f"Section '{section_name}' not found in the configuration file.")
+
+    def _get_json_logger_config(self) -> LoggingSettings:
+        return self.get_json_section('logging', LoggingSettings)
+
