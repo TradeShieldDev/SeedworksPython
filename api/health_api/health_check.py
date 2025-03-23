@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Callable, Awaitable, List
+from typing import Callable, Awaitable, List, Optional
 from pydantic import BaseModel
 import asyncio
 
@@ -18,7 +18,7 @@ class HealthCheckResult(BaseModel):
 class HealthResponse(BaseModel):
     available: bool
     healthy: bool
-    healthChecks: List[HealthCheckResult]
+    healthChecks: Optional[List[HealthCheckResult]]
 
 class HealthCheck:
     def __init__(self, title: str, check_fn: Callable[[], Awaitable[bool]], timeout: float = 2.0):
