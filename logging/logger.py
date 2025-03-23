@@ -40,7 +40,7 @@ class Logger:
     def _setup_logger():
         try:
             config_reader:ConfigManager = ConfigManager.get_instance()
-            logger_settings = config_reader.get_logger_config()
+            logger_settings:LoggingSettings = config_reader.get_logger_config()
 
             os.makedirs(logger_settings.path, exist_ok=True)
 
