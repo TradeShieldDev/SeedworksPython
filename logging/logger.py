@@ -1,7 +1,7 @@
 from loguru import logger
 from sdk.config.config_loader import ConfigManager
 
-from sdk.logging.logging_settings import LoggingSettings
+from sdk.contracts.logging_settings import LoggingSettings
 
 import os
 
